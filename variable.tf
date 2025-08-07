@@ -51,7 +51,7 @@ variable "private_subnet_cidr" {
 variable "instance_type" {
   description = "EC2 instance type. This variable is used to determine the type of instance to launch."
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 variable "key_name" {
   description = "Name of the SSH key pair to use for the EC2 instance. This variable is used to specify the key pair to use when launching the instance."

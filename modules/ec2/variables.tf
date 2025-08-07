@@ -6,7 +6,7 @@ variable "resource_name" {
 variable "instance_type" {
   description = "The type of EC2 instance to launch"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 
 variable "public_subnet_id" {

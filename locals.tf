@@ -7,19 +7,22 @@ locals {
   # The name prefix for all resources
   name_prefix = "sonarqube"
 
-  # The resource name is composed of the name prefix and the environment
-  resource_name = format("%s-%s", local.name_prefix, var.environment)
+  # The resource name is composed of the name prefix and workspace
+  resource_name = format("%s-%s", local.name_prefix, terraform.workspace)
 
   # Common tags to be applied to all resources
   common_tags = {
     # The environment (e.g. dev, staging, prod)
-    Environment = var.environment
+    Environment = terraform.workspace
 
     # The project name
     Project = "SonarQube"
 
     # The tool that manages the infrastructure
     ManagedBy = "Terraform"
+
+    # The Terraform workspace name
+    Workspace = terraform.workspace
   }
 }
 
