@@ -8,11 +8,13 @@
 
 This Terraform project deploys a production-ready SonarQube instance on AWS using a modular architecture. The infrastructure includes:
 
-- **Networking**: VPC with public and private subnets, Internet Gateway, NAT Gateway, and route tables
-- **Security**: Fine-grained security groups, IAM roles with least privilege (including SSM access), and custom SSH port
-- **Compute**: EC2 instance with Docker and Docker Compose
-- **Application**: SonarQube with PostgreSQL database in Docker containers
-- **Management**: AWS Systems Manager (SSM) for secure instance access
+- **🏢 Multi-Environment**: Workspace-based deployments (dev/staging/prod)
+- **🌐 Networking**: VPC with public and private subnets, Internet Gateway, NAT Gateway
+- **🔒 Security**: Fine-grained security groups, IAM roles with least privilege, custom SSH port
+- **💻 Compute**: EC2 instance with Docker and Docker Compose
+- **📦 Application**: SonarQube with PostgreSQL database in Docker containers
+- **🏷️ Smart Tagging**: Automatic workspace tagging for resource identification
+- **🛠️ Management**: AWS Systems Manager (SSM) for secure instance access
 
 ## Architecture
 
@@ -154,6 +156,23 @@ key_name    = "your-key-pair-name"
 - SSH key pair for EC2 instance access (if not using SSM)
 - Required AWS IAM permissions
 
+### Workspace Management
+
+This project uses Terraform workspaces for multi-environment deployments:
+
+```bash
+# Create workspaces for different environments
+terraform workspace new dev
+terraform workspace new staging
+terraform workspace new prod
+
+# List available workspaces
+terraform workspace list
+
+# Switch between environments
+terraform workspace select dev
+```
+
 ### Deployment Steps
 
 1. Clone the repository:
@@ -165,6 +184,11 @@ key_name    = "your-key-pair-name"
 2. Initialize Terraform:
    ```bash
    terraform init
+   ```
+
+3. Select or create workspace:
+   ```bash
+   terraform workspace select dev  # or staging/prod
    ```
 
 3. Create a `terraform.tfvars` file using the example below. For sensitive values, use environment variables or AWS Secrets Manager as described in the "Handling Sensitive Values" section.
@@ -253,7 +277,7 @@ ssh -i your-key.pem -p 69 ubuntu@<public-ip>
 ### Global Variables
 | Name | Description | Type | Default |
 |------|-------------|------|---------|
-| `environment` | Environment name (e.g., dev, staging, prod) | string | `"dev"` |
+| `environment` | Environment name (auto-set by workspace) | string | `terraform.workspace` |
 | `region` | AWS region to deploy resources | string | `"us-east-1"` |
 
 ### VPC Configuration
