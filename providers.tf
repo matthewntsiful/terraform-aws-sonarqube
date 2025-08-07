@@ -4,13 +4,14 @@ terraform {
   required_version = ">= 1.0.0"
 
   # S3 backend configuration for remote state storage
-  backend "s3" {
-    bucket       = "terraform-projects-backend--6dptpbxe"
-    key          = "sonarqube/terraform.tfstate"
-    region       = "af-south-1"
-    encrypt      = true
-    use_lockfile = true
-  }
+  # Commented out for HCP Terraform VCS experimentation
+  # backend "s3" {
+  #   bucket       = "terraform-projects-backend--6dptpbxe"
+  #   key          = "sonarqube/terraform.tfstate"
+  #   region       = "af-south-1"
+  #   encrypt      = true
+  #   use_lockfile = true
+  # }
 
   # Define required providers for the configuration
   required_providers {
