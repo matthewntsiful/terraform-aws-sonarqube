@@ -91,13 +91,12 @@ output "debug_commands" {
 output "resource_tags" {
   description = "The common tags applied to all resources"
   value = {
-    Environment = var.environment
+    Environment = terraform.workspace
     Project     = "SonarQube"
     ManagedBy   = "Terraform"
-    Owner       = "BlakkBrotherInc"
-    CostCenter  = "DevOps"
+    Owner       = "Matthew Ntsiful"
+    CostCenter  = "Engineering"
     Application = "SonarQube"
-   
   }
 }
 

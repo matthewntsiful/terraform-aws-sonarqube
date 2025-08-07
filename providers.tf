@@ -13,6 +13,16 @@ terraform {
   #   use_lockfile = true
   # }
 
+  # HCP Terraform (Terraform Cloud) backend with tags strategy
+  cloud {
+    organization = "Matthew-Ntsiful"
+    
+    workspaces {
+      project = "Terraform-Aws-Sonarqube"
+      tags = ["sonarqube"]
+    }
+  }
+
   # Define required providers for the configuration
   required_providers {
     # AWS provider configuration

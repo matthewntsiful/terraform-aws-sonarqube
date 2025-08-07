@@ -1,348 +1,270 @@
 # Terraform AWS SonarQube Deployment
 
-[![Terraform](https://img.shields.io/badge/terraform-%235835CC.svg?style=for-the-badge&logo=terraform&logoColor=white)](https://www.terraform.io/)
-[![AWS](https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)](https://aws.amazon.com/)
-[![SonarQube](https://img.shields.io/badge/SonarQube-black?style=for-the-badge&logo=sonarqube&logoColor=#4E9BCD)](https://www.sonarqube.org/)
-[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+![Terraform](https://img.shields.io/badge/terraform-%235835CC.svg?style=for-the-badge&logo=terraform&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+![SonarQube](https://img.shields.io/badge/SonarQube-black?style=for-the-badge&logo=sonarqube&logoColor=4E9BCD)
+![PostgreSQL](https://img.shields.io/badge/postgresql-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
+![HCP Terraform](https://img.shields.io/badge/HCP%20Terraform-623CE4?style=for-the-badge&logo=terraform&logoColor=white)
 
-This Terraform project deploys a production-ready SonarQube instance on AWS using a modular architecture. The infrastructure includes:
+A production-ready Terraform project that deploys SonarQube on AWS using HCP Terraform for remote state management and multi-environment support.
 
-- **🏢 Multi-Environment**: Workspace-based deployments (dev/staging/prod)
-- **🌐 Networking**: VPC with public and private subnets, Internet Gateway, NAT Gateway
-- **🔒 Security**: Fine-grained security groups, IAM roles with least privilege, custom SSH port
-- **💻 Compute**: EC2 instance with Docker and Docker Compose
-- **📦 Application**: SonarQube with PostgreSQL database in Docker containers
-- **🏷️ Smart Tagging**: Automatic workspace tagging for resource identification
-- **🛠️ Management**: AWS Systems Manager (SSM) for secure instance access
-
-## Architecture
+## 🏗️ Architecture
 
 ```mermaid
 graph TD
-    A[VPC] --> B[Public Subnet]
-    A --> C[Private Subnet]
-    B --> D[EC2 Instance]
-    D --> E[SonarQube Container]
-    D --> F[PostgreSQL Container]
-    B --> G[NAT Gateway]
-    B --> H[Internet Gateway]
-    C --> G
+    A[HCP Terraform] --> B[Matthew-Ntsiful Org]
+    B --> C[Terraform-Aws-Sonarqube Project]
+    C --> D[Dev Workspace]
+    C --> E[Staging Workspace]
+    C --> F[Prod Workspace]
+    
+    D --> G[VPC - sonarqube-dev]
+    E --> H[VPC - sonarqube-staging]
+    F --> I[VPC - sonarqube-prod]
+    
+    G --> J[EC2 + SonarQube + PostgreSQL]
+    H --> K[EC2 + SonarQube + PostgreSQL]
+    I --> L[EC2 + SonarQube + PostgreSQL]
 ```
 
-## Prerequisites
+## ✨ Features
 
-- AWS CLI configured with appropriate credentials
-- Terraform v1.0+ installed
-- SSH key pair for EC2 instance access
-- Required AWS IAM permissions
+- **🏢 Multi-Environment**: HCP Terraform workspace-based deployments (dev/staging/prod)
+- **🌐 Remote State**: HCP Terraform backend with workspace isolation
+- **📦 Modular Design**: Reusable VPC, Security Group, and EC2 modules
+- **🔒 Enhanced Security**: Custom SSH port, security groups with least privilege
+- **🐳 Containerized**: SonarQube and PostgreSQL in Docker containers
+- **📊 Monitoring**: CloudWatch integration and comprehensive debug outputs
+- **🏷️ Smart Tagging**: Automatic workspace-based tagging for resource identification
+- **🔧 Configurable**: All ports and settings via variables
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 terraform-aws-sonarqube/
 ├── modules/
-│   ├── ec2/                # EC2 instance module
-│   │   ├── main.tf         # EC2 resource definitions
-│   │   ├── variables.tf    # Module variables
-│   │   ├── outputs.tf      # Module outputs
-│   │   └── user_data.sh    # User data script for EC2 configuration
-│   │
-│   ├── security-group/     # Security group module
-│   │   ├── main.tf         # Security group rules
-│   │   ├── variables.tf    # Module variables
-│   │   └── outputs.tf      # Module outputs
-│   │
-│   └── vpc/                # VPC module
-│       ├── main.tf         # VPC resources
-│       ├── variables.tf    # Module variables
-│       └── outputs.tf      # Module outputs
-│
+│   ├── ec2/                # EC2 instance with Docker setup
+│   ├── security-group/     # Security group with configurable ports
+│   └── vpc/                # VPC with public/private subnets
 ├── main.tf                 # Root module configuration
-├── variables.tf           # Root variables
-├── outputs.tf             # Root outputs
-├── providers.tf           # Provider configuration
-├── data.tf               # Data sources
-├── locals.tf             # Local variables
-├── setup.sh              # Setup script for local development
-└── README.md             # This file
+├── variable.tf             # Input variables
+├── outputs.tf              # Output values with sensitive handling
+├── locals.tf               # Local values and workspace-based naming
+├── providers.tf            # HCP Terraform backend configuration
+├── terraform.auto.tfvars   # Auto-loaded default values
+└── README.md              # This file
 ```
 
-## Handling Sensitive Values
-
-This project follows security best practices for handling sensitive information. Here's how sensitive values are managed:
-
-### 1. Environment Variables
-Sensitive values should be passed via environment variables or a `.tfvars` file that is not committed to version control:
-
-```bash
-export TF_VAR_sensitive_value="your-secret-here"
-```
-
-### 2. AWS Secrets Manager
-For production environments, use AWS Secrets Manager to store sensitive information:
-
-```hcl
-data "aws_secretsmanager_secret" "example" {
-  name = "example-secret-name"
-}
-
-data "aws_secretsmanager_secret_version" "example" {
-  secret_id = data.aws_secretsmanager_secret.example.id
-}
-
-# Access the secret value
-locals {
-  secret_value = jsondecode(data.aws_secretsmanager_secret_version.example.secret_string)["key"]
-}
-```
-
-### 3. Sensitive Outputs
-All sensitive outputs are marked as such in Terraform to prevent accidental exposure:
-
-```hcl
-output "sensitive_output" {
-  value     = sensitive_resource.example.sensitive_value
-  sensitive = true
-}
-```
-
-### 4. .gitignore
-Ensure your `.gitignore` file includes:
-```
-# Local .terraform directories
-**/.terraform/*
-
-# .tfstate files
-*.tfstate
-*.tfstate.*
-
-# Crash log files
-crash.log
-crash.*.log
-
-# Exclude all .tfvars files, which are likely to contain sensitive data
-*.tfvars
-*.tfvars.json
-
-# Ignore override files as they are usually used for local overrides
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Ignore CLI configuration files
-.terraformrc
-terraform.rc
-```
-
-### 5. Example `terraform.tfvars.example`
-Include an example variables file (without real values) to document required variables:
-
-```hcl
-# terraform.tfvars.example
-environment = "dev"
-key_name    = "your-key-pair-name"
-# Sensitive values should be provided via environment variables or secrets manager
-# sensitive_value = ""
-```
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
 
-- AWS CLI configured with appropriate credentials
-- Terraform v1.0+ installed
-- SSH key pair for EC2 instance access (if not using SSM)
-- Required AWS IAM permissions
+- **Terraform CLI** v1.0+ installed
+- **HCP Terraform Account** with organization access
+- **AWS CLI** configured with appropriate credentials
+- **SSH key pair** for EC2 instance access
 
-### Workspace Management
+### HCP Terraform Setup
 
-This project uses Terraform workspaces for multi-environment deployments:
-
-```bash
-# Create workspaces for different environments
-terraform workspace new dev
-terraform workspace new staging
-terraform workspace new prod
-
-# List available workspaces
-terraform workspace list
-
-# Switch between environments
-terraform workspace select dev
-```
+The project uses HCP Terraform with the following configuration:
+- **Organization**: `Matthew-Ntsiful`
+- **Project**: `Terraform-Aws-Sonarqube`
+- **Workspaces**: Tagged with `["sonarqube"]`
 
 ### Deployment Steps
 
-1. Clone the repository:
+1. **Clone and Initialize**
    ```bash
    git clone <repository-url>
    cd terraform-aws-sonarqube
-   ```
-
-2. Initialize Terraform:
-   ```bash
    terraform init
    ```
+   *When prompted for workspace name, enter: `dev`*
 
-3. Select or create workspace:
+2. **Create Additional Workspaces**
    ```bash
-   terraform workspace select dev  # or staging/prod
+   terraform workspace new staging
+   terraform workspace new prod
    ```
 
-3. Create a `terraform.tfvars` file using the example below. For sensitive values, use environment variables or AWS Secrets Manager as described in the "Handling Sensitive Values" section.
+3. **Configure AWS Credentials in HCP**
+   - Navigate to HCP Terraform → Your Organization → Workspace
+   - Add environment variables:
+     - `AWS_ACCESS_KEY_ID` (sensitive)
+     - `AWS_SECRET_ACCESS_KEY` (sensitive)
+     - `AWS_DEFAULT_REGION` = `us-east-1`
 
-   First, copy the example file:
+4. **Deploy to Environment**
    ```bash
-   cp terraform.tfvars.example terraform.tfvars
-   ```
-
-   Then edit `terraform.tfvars` with your values:
-   ```hcl
-   # Basic configuration
-   environment      = "prod"
-   instance_type    = "t3.medium"
+   # Switch to desired environment
+   terraform workspace select dev
    
-   # Network configuration
-   vpc_cidr         = "10.0.0.0/16"
-   public_subnet_cidr  = "10.0.1.0/24"
-   private_subnet_cidr = "10.0.2.0/24"
-   
-   # Security settings
-   ssh_port         = 69  # Custom SSH port
-   
-   # For production, use environment variables or AWS Secrets Manager
-   # key_name = "${var.key_name}"  # Set via TF_VAR_key_name environment variable
-   
-   # Example of using AWS Secrets Manager for sensitive values
-   # db_credentials = data.aws_secretsmanager_secret_version.db_creds.secret_string
-   ```
-   
-   **Important**: Add `terraform.tfvars` to your `.gitignore` file to prevent committing sensitive data.
-
-4. Review the execution plan:
-   ```bash
+   # Plan and apply
    terraform plan
-   ```
-
-5. Apply the configuration:
-   ```bash
    terraform apply
    ```
 
-6. Access SonarQube:
-   - URL: Use the `sonarqube_url` output value (e.g., http://<public-ip>:9000)
+5. **Access SonarQube**
+   - URL: Use the `sonarqube_url` output
    - Default credentials: admin/admin
-   - SSH Access: Use the custom port (default: 69) or use AWS Systems Manager Session Manager
+   - SSH: Use the `ssh_connection_command` output
 
-### Accessing the Instance
+## ⚙️ Configuration
 
-#### Using AWS Systems Manager (Recommended)
-1. Install the Session Manager plugin for AWS CLI
-2. Use the instance ID from the outputs to start a session:
-   ```bash
-   aws ssm start-session --target <instance-id>
-   ```
+### Auto-Loaded Variables
 
-#### Using SSH
-```bash
-ssh -i your-key.pem -p 69 ubuntu@<public-ip>
+The `terraform.auto.tfvars` file provides default values:
+
+```hcl
+# Global Configuration
+region = "us-east-1"
+
+# VPC Configuration
+vpc_cidr            = "10.0.0.0/16"
+public_subnet_cidr  = "10.0.1.0/24"
+private_subnet_cidr = "10.0.2.0/24"
+
+# EC2 Configuration
+instance_type     = "t3.medium"
+key_name         = "terraform-test-kp"
+root_volume_size = 30
+root_volume_type = "gp3"
+
+# Security Configuration
+ssh_port = 69  # Custom SSH port for enhanced security
 ```
 
-## Key Features
+### Environment-Specific Overrides
 
-### VPC Module
-- Creates a VPC with public and private subnets in the specified CIDR ranges
-- Configures route tables with internet and NAT gateways
-- Enables DNS hostnames and DNS resolution
-- Manages route table associations
+You can override variables per workspace in HCP Terraform:
+- **Dev**: Smaller instance types, relaxed security
+- **Staging**: Production-like setup for testing
+- **Prod**: High-availability, enhanced security
 
-### Security Group Module
-- Implements fine-grained security group rules
-- Restricts SSH access to custom port (default: 69)
-- Opens only necessary ports (HTTP, SonarQube UI, custom SSH)
-- Allows ICMP (ping) for network troubleshooting
-- Implements least-privilege security group rules
+## 🏷️ Resource Tagging
 
-### EC2 Module
-- Deploys an EC2 instance with the latest Ubuntu AMI
-- Configures Docker and Docker Compose via user data
-- Sets up SonarQube with PostgreSQL in containers
-- Configures IAM role with SSM access for secure instance management
-- Manages EBS root volume with configurable size and type
+All resources are automatically tagged with:
 
-## Variables
+```hcl
+{
+  Environment = terraform.workspace  # dev/staging/prod
+  Project     = "SonarQube"
+  ManagedBy   = "Terraform"
+  Owner       = "Matthew Ntsiful"
+  Workspace   = terraform.workspace
+  CostCenter  = "Engineering"
+  Application = "SonarQube"
+}
+```
 
-### Global Variables
-| Name | Description | Type | Default |
-|------|-------------|------|---------|
-| `environment` | Environment name (auto-set by workspace) | string | `terraform.workspace` |
-| `region` | AWS region to deploy resources | string | `"us-east-1"` |
+## 📊 Outputs
 
-### VPC Configuration
-| Name | Description | Type | Default |
-|------|-------------|------|---------|
-| `vpc_cidr` | CIDR block for the VPC | string | `"10.0.0.0/16"` |
-| `public_subnet_cidr` | CIDR block for the public subnet | string | `"10.0.1.0/24"` |
-| `private_subnet_cidr` | CIDR block for the private subnet | string | `"10.0.2.0/24"` |
+The deployment provides comprehensive outputs:
 
-### EC2 Configuration
-| Name | Description | Type | Default |
-|------|-------------|------|---------|
-| `instance_type` | EC2 instance type | string | `"t3.medium"` |
-| `key_name` | Name of the SSH key pair | string | `"terraform-test-kp"` |
-| `root_volume_size` | Root volume size in GB | number | `30` |
-| `root_volume_type` | Root volume type (gp2, gp3, io1) | string | `"gp3"` |
+- **Instance Details**: IDs, IPs, DNS names
+- **Access Information**: SSH commands, SonarQube URLs
+- **Infrastructure IDs**: VPC, subnets, security groups
+- **Debug Commands**: Troubleshooting and monitoring commands
+- **Security Notes**: Important security considerations
 
-### Security Group Configuration
-| Name | Description | Type | Default |
-|------|-------------|------|---------|
-| `ssh_port` | Port for SSH access | number | `69` |
-| `default_ssh_port` | Default SSH port (22) | number | `22` |
-| `http_port` | Port for HTTP access | number | `80` |
-| `sonar_port` | Port for SonarQube web interface | number | `9000` |
-| `icmp_port` | Port for ICMP (ping) | number | `-1` |
+## 🔐 Security Features
 
-## Outputs
+- **Custom SSH Port**: Port 69 instead of default 22
+- **Security Groups**: Least privilege access rules
+- **IAM Roles**: Minimal required permissions for SSM access
+- **Encrypted Storage**: EBS volumes with encryption
+- **Network Isolation**: Private subnets for sensitive resources
+- **Sensitive Outputs**: Properly marked to prevent exposure
 
-| Name | Description |
-|------|-------------|
-| `sonarqube_url` | URL to access SonarQube web interface |
-| `instance_public_ip` | Public IP of the EC2 instance |
-| `ssh_connection_command` | SSH command to connect to the instance |
-| `vpc_id` | The ID of the VPC |
-| `public_subnet_id` | The ID of the public subnet |
-| `security_group_id` | The ID of the security group |
+## 🌍 Multi-Environment Management
 
-## Security Considerations
-
-- Uses a custom SSH port (default: 2200)
-- Implements security group rules with least privilege
-- Uses IAM roles with minimum required permissions
-- All resources are tagged for cost allocation and management
-- Instance metadata service (IMDS) is secured
-
-## Maintenance
-
-### Upgrading
-1. Update the module versions in `main.tf`
-2. Run `terraform init -upgrade`
-3. Review and apply changes
-
-### Monitoring
-- CloudWatch Logs for Docker containers
-- EC2 instance metrics
-- VPC flow logs (recommended for production)
-
-## Clean Up
-
-To destroy all resources:
+### Workspace Operations
 
 ```bash
+# List all workspaces
+terraform workspace list
+
+# Switch environments
+terraform workspace select dev
+terraform workspace select staging
+terraform workspace select prod
+
+# Deploy to current workspace
+terraform plan
+terraform apply
+
+# View current workspace
+terraform workspace show
+```
+
+### Environment Isolation
+
+Each workspace creates:
+- **Separate Infrastructure**: Complete isolation between environments
+- **Unique Resource Names**: `sonarqube-{workspace}` naming convention
+- **Independent State**: Managed in HCP Terraform
+- **Environment-Specific Tags**: Automatic workspace tagging
+
+## 🛠️ Maintenance
+
+### Upgrading Infrastructure
+```bash
+terraform workspace select <environment>
+terraform plan
+terraform apply
+```
+
+### Monitoring and Debugging
+- **CloudWatch Logs**: Container and system monitoring
+- **Debug Commands**: Available in outputs for troubleshooting
+- **HCP Terraform UI**: Centralized state and run management
+
+### Cleanup
+```bash
+# Destroy specific environment
+terraform workspace select dev
 terraform destroy
+
+# Or destroy all environments
+for env in dev staging prod; do
+  terraform workspace select $env
+  terraform destroy -auto-approve
+done
 ```
 
-## License
+## 📋 Requirements
+
+- **Terraform**: >= 1.0.0
+- **AWS Provider**: Latest version (auto-detected)
+- **HCP Terraform**: Organization access required
+- **AWS Permissions**: EC2, VPC, IAM, CloudWatch access
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Test in dev environment first
+4. Submit a pull request with detailed description
+
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+For issues and questions:
+- Check HCP Terraform run logs
+- Review debug outputs for troubleshooting
+- Examine CloudWatch logs for application issues
+- Open an issue in the repository
+
+---
+
+**⚠️ Important Security Notes:**
+- Always change default SonarQube admin password
+- Review security group rules before production deployment
+- Use HTTPS for production SonarQube access
+- Regularly update container images and system packages
+- Monitor AWS costs and resource usage across environments
