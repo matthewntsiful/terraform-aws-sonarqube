@@ -231,24 +231,38 @@ The deployment provides comprehensive outputs:
 
 ## 🌍 Multi-Environment Management
 
-### CLI Workspace Operations
+### CLI Operations with VCS-Connected Workspaces
 
+**Read-Only Operations (Always Available):**
 ```bash
-# List all workspaces
+# Workspace management
 terraform workspace list
-
-# Switch environments
-terraform workspace select dev
-terraform workspace select staging
-terraform workspace select prod
-
-# Deploy to current workspace
-terraform plan
-terraform apply
-
-# View current workspace
 terraform workspace show
+terraform workspace select <environment>
+
+# State inspection
+terraform state list
+terraform state show <resource>
+terraform show
+
+# Output viewing
+terraform output
+terraform output <output_name>
+
+# Configuration validation
+terraform validate
+terraform fmt -check
 ```
+
+**Write Operations (VCS-Only for Connected Workspaces):**
+```bash
+# These require VCS workflow when workspace is VCS-connected
+terraform plan    # Use HCP UI or VCS triggers
+terraform apply   # Use HCP UI or VCS triggers  
+terraform destroy # Use HCP UI destruction workflow
+```
+
+**Note**: VCS-connected workspaces enforce "single source of truth" - infrastructure changes must go through VCS workflow, but CLI inspection and debugging remain fully available.
 
 ### VCS-Driven Workflow
 
@@ -320,18 +334,14 @@ git push origin dev     # → Triggers deployment
 - Queue destroy plan
 - Review and confirm destruction
 
-**Via CLI:**
+**Via CLI (Non-VCS Workspaces Only):**
 ```bash
-# Destroy specific environment
+# Only works if workspace is not VCS-connected
 terraform workspace select dev
 terraform destroy
-
-# Or destroy all environments
-for env in dev staging prod; do
-  terraform workspace select $env
-  terraform destroy -auto-approve
-done
 ```
+
+**Note**: For VCS-connected workspaces, use HCP UI destruction workflow to maintain VCS as single source of truth.
 
 ## 📋 Requirements
 
