@@ -14,23 +14,35 @@ A production-ready Terraform project that deploys SonarQube on AWS using HCP Ter
 
 ```mermaid
 graph TD
-    A[HCP Terraform] --> B[Matthew-Ntsiful Org]
-    B --> C[Terraform-Aws-Sonarqube Project]
-    C --> D[Dev Workspace]
-    C --> E[Staging Workspace]
-    C --> F[Prod Workspace]
+    A[GitHub Repository] --> B[VCS Integration]
+    B --> C[HCP Terraform]
+    C --> D[Matthew-Ntsiful Org]
+    D --> E[Terraform-Aws-Sonarqube Project]
     
-    D --> G[VPC - sonarqube-dev]
-    E --> H[VPC - sonarqube-staging]
-    F --> I[VPC - sonarqube-prod]
+    E --> F[Dev Workspace]
+    E --> G[Staging Workspace] 
+    E --> H[Prod Workspace]
     
-    G --> J[EC2 + SonarQube + PostgreSQL]
-    H --> K[EC2 + SonarQube + PostgreSQL]
-    I --> L[EC2 + SonarQube + PostgreSQL]
+    I[dev branch push] --> F
+    J[staging branch push] --> G
+    K[main branch push] --> H
+    
+    F --> L[Auto-Deploy]
+    G --> M[Plan + Manual Approval]
+    H --> N[Plan + Manual Approval]
+    
+    L --> O[AWS Dev: sonarqube-dev]
+    M --> P[AWS Staging: sonarqube-staging]
+    N --> Q[AWS Prod: sonarqube-prod]
+    
+    O --> R[EC2 + SonarQube + PostgreSQL]
+    P --> S[EC2 + SonarQube + PostgreSQL]
+    Q --> T[EC2 + SonarQube + PostgreSQL]
 ```
 
 ## ✨ Features
 
+- **🔄 VCS-Driven CI/CD**: Automated deployments triggered by git pushes to specific branches
 - **🏢 Multi-Environment**: HCP Terraform workspace-based deployments (dev/staging/prod)
 - **🌐 Remote State**: HCP Terraform backend with workspace isolation
 - **📦 Modular Design**: Reusable VPC, Security Group, and EC2 modules
@@ -73,7 +85,11 @@ The project uses HCP Terraform with the following configuration:
 - **Project**: `Terraform-Aws-Sonarqube`
 - **Workspaces**: Tagged with `["sonarqube"]`
 
-### Deployment Steps
+### Deployment Options
+
+This project supports **both CLI and VCS-driven workflows**, demonstrating enterprise-grade DevOps practices:
+
+#### **Option 1: CLI-Based Deployment**
 
 1. **Clone and Initialize**
    ```bash
@@ -89,14 +105,7 @@ The project uses HCP Terraform with the following configuration:
    terraform workspace new prod
    ```
 
-3. **Configure AWS Credentials in HCP**
-   - Navigate to HCP Terraform → Your Organization → Workspace
-   - Add environment variables:
-     - `AWS_ACCESS_KEY_ID` (sensitive)
-     - `AWS_SECRET_ACCESS_KEY` (sensitive)
-     - `AWS_DEFAULT_REGION` = `us-east-1`
-
-4. **Deploy to Environment**
+3. **Deploy to Environment**
    ```bash
    # Switch to desired environment
    terraform workspace select dev
@@ -106,10 +115,52 @@ The project uses HCP Terraform with the following configuration:
    terraform apply
    ```
 
-5. **Access SonarQube**
-   - URL: Use the `sonarqube_url` output
-   - Default credentials: admin/admin
-   - SSH: Use the `ssh_connection_command` output
+#### **Option 2: VCS-Driven CI/CD (Production Recommended)**
+
+The project uses **HCP Terraform VCS integration** for automated CI/CD:
+
+**Branch Strategy:**
+- **`dev` branch** → Auto-deploys to dev environment
+- **`staging` branch** → Plans staging, requires manual approval
+- **`main` branch** → Plans production, requires manual approval
+
+**Development Workflow:**
+
+1. **Development Changes**
+   ```bash
+   git checkout dev
+   # Make your changes
+   git add . && git commit -m "Update infrastructure"
+   git push origin dev     # → Triggers auto-deployment to dev
+   ```
+
+2. **Promote to Staging**
+   ```bash
+   git checkout staging
+   git merge dev
+   git push origin staging # → Triggers plan, awaits approval in HCP UI
+   ```
+
+3. **Promote to Production**
+   ```bash
+   git checkout main
+   git merge staging
+   git push origin main    # → Triggers plan, awaits approval in HCP UI
+   ```
+
+#### **Configuration**
+
+**Configure AWS Credentials in HCP**
+- Navigate to HCP Terraform → Your Organization → Each Workspace
+- Add environment variables:
+  - `AWS_ACCESS_KEY_ID` (sensitive)
+  - `AWS_SECRET_ACCESS_KEY` (sensitive)
+  - `AWS_DEFAULT_REGION` = `us-east-1`
+
+**Access SonarQube**
+- URL: Check HCP Terraform workspace outputs for `sonarqube_url`
+- Default credentials: admin/admin
+- SSH: Use the `ssh_connection_command` output
 
 ## ⚙️ Configuration
 
@@ -180,7 +231,7 @@ The deployment provides comprehensive outputs:
 
 ## 🌍 Multi-Environment Management
 
-### Workspace Operations
+### CLI Workspace Operations
 
 ```bash
 # List all workspaces
@@ -199,6 +250,25 @@ terraform apply
 terraform workspace show
 ```
 
+### VCS-Driven Workflow
+
+```bash
+# Development workflow
+git checkout dev
+git add . && git commit -m "changes"
+git push origin dev        # → Auto-deploys to dev
+
+# Staging promotion
+git checkout staging
+git merge dev
+git push origin staging    # → Plans staging, awaits approval
+
+# Production promotion
+git checkout main
+git merge staging
+git push origin main       # → Plans prod, awaits approval
+```
+
 ### Environment Isolation
 
 Each workspace creates:
@@ -206,22 +276,51 @@ Each workspace creates:
 - **Unique Resource Names**: `sonarqube-{workspace}` naming convention
 - **Independent State**: Managed in HCP Terraform
 - **Environment-Specific Tags**: Automatic workspace tagging
+- **Branch-Based Triggers**: Each environment tied to specific git branches
+
+### Auto-Apply Settings
+- **Dev**: Auto-apply enabled for VCS triggers (fast feedback)
+- **Staging**: Manual approval required (testing workflow)
+- **Prod**: Manual approval required (maximum safety)
 
 ## 🛠️ Maintenance
 
 ### Upgrading Infrastructure
+
+**Via CLI:**
 ```bash
 terraform workspace select <environment>
 terraform plan
 terraform apply
 ```
 
+**Via VCS (Production Recommended):**
+```bash
+# Make changes and push to appropriate branch
+git checkout dev
+# Edit terraform files
+git add . && git commit -m "Upgrade instance type"
+git push origin dev     # → Triggers deployment
+```
+
+**Via HCP UI:**
+- Navigate to workspace in HCP Terraform
+- Queue plan manually if needed
+- Review and apply changes
+
 ### Monitoring and Debugging
+- **HCP Terraform UI**: Centralized run history and state management
 - **CloudWatch Logs**: Container and system monitoring
-- **Debug Commands**: Available in outputs for troubleshooting
-- **HCP Terraform UI**: Centralized state and run management
+- **Debug Commands**: Available in workspace outputs
+- **Run Logs**: Detailed logs for each deployment in HCP
 
 ### Cleanup
+**Via HCP UI (Recommended):**
+- Go to workspace → Settings → Destruction and Deletion
+- Queue destroy plan
+- Review and confirm destruction
+
+**Via CLI:**
 ```bash
 # Destroy specific environment
 terraform workspace select dev
