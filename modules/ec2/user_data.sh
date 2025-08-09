@@ -82,3 +82,4 @@ docker-compose up -d
 
 echo "SonarQube installation completed!"
 echo "Access SonarQube at: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):9000"
+#echo "Access SonarQube at: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4):9000"
