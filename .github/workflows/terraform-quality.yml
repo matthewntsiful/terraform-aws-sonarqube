@@ -15,6 +15,11 @@ jobs:
   quality-checks:
     name: "Code Quality & Security"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      security-events: write  # Required for SARIF uploads
+      actions: read
     
     steps:
       - name: Checkout Code
@@ -66,6 +71,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: checkov-results.sarif
+        continue-on-error: true  # Don't fail workflow if upload fails
 
       - name: Cost Estimation with Infracost
         uses: infracost/actions/setup@v2
