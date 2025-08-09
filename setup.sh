@@ -26,7 +26,7 @@ cat > /home/ubuntu/docker-compose.yml << 'EOF'
 version: '3.8'
 services:
   sonarqube:
-    image: sonarqube:lts-community
+    image: sonarqube:latest
     container_name: sonarqube
     restart: unless-stopped
     ports:

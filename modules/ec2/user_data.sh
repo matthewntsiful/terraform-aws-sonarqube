@@ -36,7 +36,7 @@ cat << 'EOF' > /home/ubuntu/docker-compose.yaml
 version: '3'
 services:
   sonarqube:
-    image: sonarqube:lts-community
+    image: sonarqube:latest
     ports:
       - "9000:9000"
     networks:
