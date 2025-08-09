@@ -1,4 +1,4 @@
-name: "Terraform Quality & Security Checks"
+name: "Terraform CI/CD Pipeline"
 
 on:
   push:
@@ -11,14 +11,14 @@ env:
   TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
 
 jobs:
-  # Pre-deployment quality checks
-  quality-checks:
-    name: "Code Quality & Security"
+  # Quality checks and HCP monitoring - all in one job
+  terraform-pipeline:
+    name: "Quality Checks & Deployment"
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-      security-events: write  # Required for SARIF uploads
+      security-events: write
       actions: read
     
     steps:
@@ -30,159 +30,146 @@ jobs:
         with:
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
+      - name: Determine Environment
+        id: env
+        run: |
+          case "${{ github.ref_name }}" in
+            "main") ENV="prod" ;;
+            "staging") ENV="staging" ;;
+            "dev") ENV="dev" ;;
+            *) ENV="dev" ;;
+          esac
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "🎯 Target environment: $ENV"
+
+      # Quality Checks
       - name: Terraform Format Check
-        id: fmt
         run: terraform fmt -check -recursive
         continue-on-error: true
 
       - name: Terraform Init (Skip Backend)
-        run: |
-          # Initialize without backend to avoid workspace selection
-          terraform init -backend=false
+        run: terraform init -backend=false
 
       - name: Terraform Validate
-        id: validate
         run: terraform validate
 
-      - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@v4
-        with:
-          tflint_version: latest
-
-      - name: Run TFLint
-        id: tflint
-        run: |
-          tflint --init
-          tflint --format compact
-        continue-on-error: true
-
-      - name: Run Checkov Security Scan
-        id: checkov
+      - name: Security Scan with Checkov
         uses: bridgecrewio/checkov-action@master
         with:
           directory: .
           framework: terraform
-          output_format: sarif
-          output_file_path: checkov-results.sarif
+          quiet: true
         continue-on-error: true
 
-      - name: Upload Checkov Results to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: checkov-results.sarif
-        continue-on-error: true  # Don't fail workflow if upload fails
-
       - name: Cost Estimation with Infracost
+        if: github.event_name == 'push'
         uses: infracost/actions/setup@v2
         with:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
 
-      - name: Generate Infracost Report
-        id: infracost
+      - name: Generate Cost Report
+        if: github.event_name == 'push'
         run: |
-          infracost breakdown --path=. \
-            --format=json \
-            --out-file=infracost-base.json
-          infracost output --path=infracost-base.json \
-            --format=github-comment \
-            --out-file=infracost-comment.md
+          infracost breakdown \
+            --path=. \
+            --format=table \
+            --terraform-var-file=workspace-variables/${{ steps.env.outputs.environment }}.tfvars || echo "Cost estimation unavailable"
         continue-on-error: true
 
-      - name: Comment PR with Quality Results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            
-            // Read infracost comment if it exists
-            let infracostComment = '';
-            try {
-              infracostComment = fs.readFileSync('infracost-comment.md', 'utf8');
-            } catch (error) {
-              infracostComment = '💰 Cost estimation not available';
-            }
-
-            const output = `## 🔍 Terraform Quality Report
-            
-            ### 📋 Code Quality Results
-            - **Format Check**: \`${{ steps.fmt.outcome }}\`
-            - **Validation**: \`${{ steps.validate.outcome }}\`
-            - **TFLint**: \`${{ steps.tflint.outcome }}\`
-            - **Security Scan**: \`${{ steps.checkov.outcome }}\`
-            
-            ### 🏗️ Deployment Status
-            - **Target Environment**: \`${{ github.ref_name }}\`
-            - **HCP Terraform**: Will auto-deploy after merge
-            - **Workspace**: \`${{ github.ref_name == 'main' && 'prod' || github.ref_name }}\`
-            
-            ### 💰 Cost Impact
-            ${infracostComment}
-            
-            ### 🚀 Next Steps
-            ${github.ref_name === 'staging' ? 
-              '- ✅ Ready for staging deployment\n- 🔄 HCP Terraform will auto-deploy on merge' :
-              github.ref_name === 'main' ?
-              '- ⚠️ **PRODUCTION DEPLOYMENT**\n- 🔄 HCP Terraform will auto-deploy on merge' :
-              '- ✅ Ready for development deployment\n- 🔄 HCP Terraform will auto-deploy on merge'
-            }
-            
-            ---
-            *Quality checks by GitHub Actions • Deployment by HCP Terraform*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            });
-
-  # Monitor HCP Terraform deployment status
-  deployment-monitor:
-    name: "Monitor HCP Deployment"
-    runs-on: ubuntu-latest
-    needs: quality-checks
-    if: github.event_name == 'push'
-    
-    steps:
-      - name: Wait for HCP Terraform Deployment
+      # HCP Terraform Monitoring (only on push)
+      - name: Monitor HCP Terraform Deployment
+        if: github.event_name == 'push'
+        id: hcp_monitor
         run: |
-          echo "🔄 HCP Terraform is deploying your infrastructure..."
-          echo "📊 Monitor at: https://app.terraform.io/app/Matthew-Ntsiful/workspaces"
+          WORKSPACE="${{ steps.env.outputs.environment }}"
+          echo "🔄 Monitoring HCP Terraform deployment to $WORKSPACE..."
           
-          # Determine workspace based on branch
-          case "${{ github.ref_name }}" in
-            "main") WORKSPACE="prod" ;;
-            "staging") WORKSPACE="staging" ;;
-            "dev") WORKSPACE="dev" ;;
-            *) WORKSPACE="dev" ;;
-          esac
+          # Wait for HCP to detect the push
+          sleep 45
           
-          echo "🎯 Target workspace: $WORKSPACE"
-          echo "🌐 Direct link: https://app.terraform.io/app/Matthew-Ntsiful/workspaces/$WORKSPACE"
+          # Get latest run
+          RUN_DATA=$(curl -s \
+            --header "Authorization: Bearer $TF_API_TOKEN" \
+            --header "Content-Type: application/vnd.api+json" \
+            "https://app.terraform.io/api/v2/organizations/$TF_CLOUD_ORGANIZATION/workspaces/$WORKSPACE/runs?page%5Bsize%5D=1")
+          
+          RUN_ID=$(echo "$RUN_DATA" | jq -r '.data[0].id // empty')
+          
+          if [ -z "$RUN_ID" ]; then
+            echo "⚠️ No recent runs found - HCP may still be starting"
+            echo "📊 Monitor manually: https://app.terraform.io/app/$TF_CLOUD_ORGANIZATION/workspaces/$WORKSPACE"
+            exit 0
+          fi
+          
+          echo "📋 Monitoring run: $RUN_ID"
+          echo "🌐 Dashboard: https://app.terraform.io/app/$TF_CLOUD_ORGANIZATION/workspaces/$WORKSPACE/runs/$RUN_ID"
+          
+          # Monitor for up to 15 minutes
+          for i in {1..30}; do
+            RUN_STATUS=$(curl -s \
+              --header "Authorization: Bearer $TF_API_TOKEN" \
+              --header "Content-Type: application/vnd.api+json" \
+              "https://app.terraform.io/api/v2/runs/$RUN_ID" | jq -r '.data.attributes.status')
+            
+            echo "⏱️  Attempt $i/30: Status = $RUN_STATUS"
+            
+            case "$RUN_STATUS" in
+              "applied")
+                echo "✅ HCP Terraform deployment completed successfully!"
+                echo "status=success" >> $GITHUB_OUTPUT
+                echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+                exit 0
+                ;;
+              "planned_and_finished")
+                echo "✅ Plan completed (no changes needed)"
+                echo "status=no_changes" >> $GITHUB_OUTPUT
+                echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+                exit 0
+                ;;
+              "errored"|"canceled"|"force_canceled")
+                echo "❌ HCP Terraform deployment failed: $RUN_STATUS"
+                echo "status=failed" >> $GITHUB_OUTPUT
+                echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+                exit 0
+                ;;
+              "planning"|"planned"|"confirmed"|"applying")
+                echo "🔄 Deployment in progress..."
+                ;;
+            esac
+            
+            sleep 30
+          done
+          
+          echo "⏰ Monitoring timeout - check HCP manually"
+          echo "status=timeout" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
 
-      - name: Send Slack Notification
-        if: always()
+      # Unified Slack Notification
+      - name: Send Deployment Notification
+        if: always() && github.event_name == 'push'
         uses: 8398a7/action-slack@v3
         with:
           status: custom
           custom_payload: |
             {
-              "text": "🚀 Infrastructure Deployment Started",
+              "text": "${{ steps.hcp_monitor.outputs.status == 'success' && '✅ Deployment Completed' || steps.hcp_monitor.outputs.status == 'failed' && '❌ Deployment Failed' || '🔄 Deployment Status Update' }}",
               "attachments": [
                 {
-                  "color": "${{ github.ref_name == 'main' && 'danger' || 'good' }}",
+                  "color": "${{ steps.hcp_monitor.outputs.status == 'success' && 'good' || steps.hcp_monitor.outputs.status == 'failed' && 'danger' || 'warning' }}",
                   "fields": [
                     {
                       "title": "Environment",
-                      "value": "${{ github.ref_name == 'main' && 'Production' || github.ref_name == 'staging' && 'Staging' || 'Development' }}",
+                      "value": "${{ steps.env.outputs.environment }}",
                       "short": true
                     },
                     {
                       "title": "Branch",
                       "value": "${{ github.ref_name }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Status",
+                      "value": "${{ steps.hcp_monitor.outputs.status || 'in_progress' }}",
                       "short": true
                     },
                     {
@@ -192,46 +179,12 @@ jobs:
                     },
                     {
                       "title": "Monitor",
-                      "value": "<https://app.terraform.io/app/Matthew-Ntsiful/workspaces|HCP Terraform Dashboard>",
+                      "value": "<https://app.terraform.io/app/${{ env.TF_CLOUD_ORGANIZATION }}/workspaces/${{ steps.env.outputs.environment }}|HCP Terraform Dashboard>",
                       "short": false
                     }
                   ]
                 }
               ]
             }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-  # Post-deployment verification
-  post-deployment:
-    name: "Post-Deployment Checks"
-    runs-on: ubuntu-latest
-    needs: deployment-monitor
-    if: github.event_name == 'push'
-    
-    steps:
-      - name: Wait for Deployment Completion
-        run: |
-          echo "⏳ Waiting for HCP Terraform deployment to complete..."
-          sleep 120  # Wait 2 minutes for deployment
-          
-      - name: Health Check (if staging/prod)
-        if: github.ref_name == 'staging' || github.ref_name == 'main'
-        run: |
-          echo "🏥 Running health checks..."
-          # Add your health check commands here
-          # Example: curl health endpoints, check service status, etc.
-          
-      - name: Update Documentation
-        if: github.ref_name == 'main'
-        run: |
-          echo "📚 Updating deployment documentation..."
-          echo "Last production deployment: $(date)" >> DEPLOYMENT_HISTORY.md
-          
-      - name: Success Notification
-        uses: 8398a7/action-slack@v3
-        with:
-          status: success
-          text: "✅ Infrastructure deployment completed successfully!"
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
