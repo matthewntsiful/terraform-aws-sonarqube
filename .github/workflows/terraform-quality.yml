@@ -31,7 +31,9 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          # Initialize and automatically select staging workspace for validation
+          echo "3" | terraform init
 
       - name: Terraform Validate
         id: validate
