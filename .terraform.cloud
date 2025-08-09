@@ -1,0 +1,21 @@
+# HCP Terraform Workspace Configuration
+# This file helps configure VCS-driven workflows
+
+# Staging Environment Configuration
+# Connect this to your 'staging' branch in HCP Terraform UI:
+# 1. Go to HCP Terraform → Matthew-Ntsiful → Terraform-Aws-Sonarqube
+# 2. Select 'staging' workspace
+# 3. Settings → Version Control → Connect to VCS
+# 4. Select GitHub repository: matthewntsiful/terraform-aws-sonarqube
+# 5. Set VCS branch: staging
+# 6. Enable Auto Apply for automatic deployments
+
+# Workspace Mapping:
+# - staging branch → staging workspace
+# - main branch → prod workspace  
+# - dev branch → dev workspace
+
+# Required GitHub Secrets (if using GitHub Actions):
+# TF_API_TOKEN: Your HCP Terraform API token
+# AWS_ACCESS_KEY_ID: AWS access key (also set in HCP workspaces)
+# AWS_SECRET_ACCESS_KEY: AWS secret key (also set in HCP workspaces)
