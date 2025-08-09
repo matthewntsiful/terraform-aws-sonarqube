@@ -24,7 +24,7 @@ resource "aws_instance" "web_server" {
 
   root_block_device {
     volume_size = var.root_volume_size
-    volume_type = var.root_volume_type
+    volume_type = var.root_volume_typre
   }
 
   user_data = templatefile("${path.module}/user_data.sh", {
@@ -47,3 +47,5 @@ resource "aws_instance" "web_server" {
   }
 }
 
+
+##
