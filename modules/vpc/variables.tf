@@ -13,12 +13,22 @@ variable "public_subnet_cidr" {
   description = "CIDR block for the public subnet"
   type        = string
   default     = "10.0.1.0/24"
+  
+  validation {
+    condition     = can(cidrhost(trimspace(var.public_subnet_cidr), 0))
+    error_message = "The public_subnet_cidr must be a valid CIDR block. Current value: '${var.public_subnet_cidr}'"
+  }
 }
 
 variable "private_subnet_cidr" {
   description = "CIDR block for the private subnet"
   type        = string
   default     = "10.0.2.0/24"
+  
+  validation {
+    condition     = can(cidrhost(trimspace(var.private_subnet_cidr), 0))
+    error_message = "The private_subnet_cidr must be a valid CIDR block. Current value: '${var.private_subnet_cidr}'"
+  }
 }
 
 variable "tags" {
