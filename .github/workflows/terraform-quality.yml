@@ -30,23 +30,14 @@ jobs:
         run: terraform fmt -check -recursive
         continue-on-error: true
 
-      - name: Terraform Init (Local Backend)
+      - name: Terraform Init (Skip Backend)
         run: |
-          # Create temporary local backend to avoid HCP workspace selection
-          cat > backend-override.tf << EOF
-          terraform {
-            backend "local" {}
-          }
-          EOF
+          # Initialize without backend to avoid workspace selection
           terraform init -backend=false
 
       - name: Terraform Validate
         id: validate
         run: terraform validate
-
-      - name: Cleanup Backend Override
-        if: always()
-        run: rm -f backend-override.tf
 
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
