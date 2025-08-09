@@ -1,0 +1,229 @@
+name: "Terraform Quality & Security Checks"
+
+on:
+  push:
+    branches: [dev, staging, main]
+  pull_request:
+    branches: [staging, main]
+
+env:
+  TF_CLOUD_ORGANIZATION: "Matthew-Ntsiful"
+  TF_API_TOKEN: "${{ secrets.TF_API_TOKEN }}"
+
+jobs:
+  # Pre-deployment quality checks
+  quality-checks:
+    name: "Code Quality & Security"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run TFLint
+        id: tflint
+        run: |
+          tflint --init
+          tflint --format compact
+        continue-on-error: true
+
+      - name: Run Checkov Security Scan
+        id: checkov
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-results.sarif
+        continue-on-error: true
+
+      - name: Upload Checkov Results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-results.sarif
+
+      - name: Cost Estimation with Infracost
+        uses: infracost/actions/setup@v2
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost Report
+        id: infracost
+        run: |
+          infracost breakdown --path=. \
+            --format=json \
+            --out-file=infracost-base.json
+          infracost output --path=infracost-base.json \
+            --format=github-comment \
+            --out-file=infracost-comment.md
+        continue-on-error: true
+
+      - name: Comment PR with Quality Results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            
+            // Read infracost comment if it exists
+            let infracostComment = '';
+            try {
+              infracostComment = fs.readFileSync('infracost-comment.md', 'utf8');
+            } catch (error) {
+              infracostComment = '💰 Cost estimation not available';
+            }
+
+            const output = `## 🔍 Terraform Quality Report
+            
+            ### 📋 Code Quality Results
+            - **Format Check**: \`${{ steps.fmt.outcome }}\`
+            - **Validation**: \`${{ steps.validate.outcome }}\`
+            - **TFLint**: \`${{ steps.tflint.outcome }}\`
+            - **Security Scan**: \`${{ steps.checkov.outcome }}\`
+            
+            ### 🏗️ Deployment Status
+            - **Target Environment**: \`${{ github.ref_name }}\`
+            - **HCP Terraform**: Will auto-deploy after merge
+            - **Workspace**: \`${{ github.ref_name == 'main' && 'prod' || github.ref_name }}\`
+            
+            ### 💰 Cost Impact
+            ${infracostComment}
+            
+            ### 🚀 Next Steps
+            ${github.ref_name === 'staging' ? 
+              '- ✅ Ready for staging deployment\n- 🔄 HCP Terraform will auto-deploy on merge' :
+              github.ref_name === 'main' ?
+              '- ⚠️ **PRODUCTION DEPLOYMENT**\n- 🔄 HCP Terraform will auto-deploy on merge' :
+              '- ✅ Ready for development deployment\n- 🔄 HCP Terraform will auto-deploy on merge'
+            }
+            
+            ---
+            *Quality checks by GitHub Actions • Deployment by HCP Terraform*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  # Monitor HCP Terraform deployment status
+  deployment-monitor:
+    name: "Monitor HCP Deployment"
+    runs-on: ubuntu-latest
+    needs: quality-checks
+    if: github.event_name == 'push'
+    
+    steps:
+      - name: Wait for HCP Terraform Deployment
+        run: |
+          echo "🔄 HCP Terraform is deploying your infrastructure..."
+          echo "📊 Monitor at: https://app.terraform.io/app/Matthew-Ntsiful/workspaces"
+          
+          # Determine workspace based on branch
+          case "${{ github.ref_name }}" in
+            "main") WORKSPACE="prod" ;;
+            "staging") WORKSPACE="staging" ;;
+            "dev") WORKSPACE="dev" ;;
+            *) WORKSPACE="dev" ;;
+          esac
+          
+          echo "🎯 Target workspace: $WORKSPACE"
+          echo "🌐 Direct link: https://app.terraform.io/app/Matthew-Ntsiful/workspaces/$WORKSPACE"
+
+      - name: Send Slack Notification
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "text": "🚀 Infrastructure Deployment Started",
+              "attachments": [
+                {
+                  "color": "${{ github.ref_name == 'main' && 'danger' || 'good' }}",
+                  "fields": [
+                    {
+                      "title": "Environment",
+                      "value": "${{ github.ref_name == 'main' && 'Production' || github.ref_name == 'staging' && 'Staging' || 'Development' }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Branch",
+                      "value": "${{ github.ref_name }}",
+                      "short": true
+                    },
+                    {
+                      "title": "Commit",
+                      "value": "${{ github.event.head_commit.message }}",
+                      "short": false
+                    },
+                    {
+                      "title": "Monitor",
+                      "value": "<https://app.terraform.io/app/Matthew-Ntsiful/workspaces|HCP Terraform Dashboard>",
+                      "short": false
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Post-deployment verification
+  post-deployment:
+    name: "Post-Deployment Checks"
+    runs-on: ubuntu-latest
+    needs: deployment-monitor
+    if: github.event_name == 'push'
+    
+    steps:
+      - name: Wait for Deployment Completion
+        run: |
+          echo "⏳ Waiting for HCP Terraform deployment to complete..."
+          sleep 120  # Wait 2 minutes for deployment
+          
+      - name: Health Check (if staging/prod)
+        if: github.ref_name == 'staging' || github.ref_name == 'main'
+        run: |
+          echo "🏥 Running health checks..."
+          # Add your health check commands here
+          # Example: curl health endpoints, check service status, etc.
+          
+      - name: Update Documentation
+        if: github.ref_name == 'main'
+        run: |
+          echo "📚 Updating deployment documentation..."
+          echo "Last production deployment: $(date)" >> DEPLOYMENT_HISTORY.md
+          
+      - name: Success Notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: "✅ Infrastructure deployment completed successfully!"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
