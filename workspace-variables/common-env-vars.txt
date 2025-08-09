@@ -1,0 +1,16 @@
+# Common Environment Variables for All Workspaces
+# ================================================
+# These should be set as Environment Variables (not Terraform Variables) in HCP Terraform
+# Mark AWS credentials as SENSITIVE in the HCP UI
+
+# AWS Credentials (REQUIRED - Mark as Sensitive)
+AWS_ACCESS_KEY_ID=your-aws-access-key-id
+AWS_SECRET_ACCESS_KEY=your-aws-secret-access-key
+AWS_DEFAULT_REGION=us-east-1
+
+# Optional: If using temporary credentials
+# AWS_SESSION_TOKEN=your-session-token
+
+# Optional: Additional AWS Configuration
+# AWS_PROFILE=default
+# AWS_SDK_LOAD_CONFIG=1

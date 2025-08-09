@@ -34,26 +34,28 @@ graph TD
 - **🏢 Multi-Environment**: HCP Terraform workspace-based deployments (dev/staging/prod)
 - **🌐 Remote State**: HCP Terraform backend with workspace isolation
 - **📦 Modular Design**: Reusable VPC, Security Group, and EC2 modules
-- **🔒 Enhanced Security**: Custom SSH port, security groups with least privilege
+- **🔒 Enhanced Security**: Custom SSH port, IAM roles with SSM access, security groups with least privilege
 - **🐳 Containerized**: SonarQube and PostgreSQL in Docker containers
-- **📊 Monitoring**: CloudWatch integration and comprehensive debug outputs
+- **📊 Monitoring**: CloudWatch integration, comprehensive debug outputs, and deployment timestamps
 - **🏷️ Smart Tagging**: Automatic workspace-based tagging for resource identification
-- **🔧 Configurable**: All ports and settings via variables
+- **🔧 Configurable**: All ports and settings via variables with documentation fallbacks
+- **🛡️ IAM Integration**: EC2 instance profiles with Systems Manager access for secure management
+- **📋 Rich Outputs**: Sensitive output handling, debug commands, and security notes
 
 ## 📁 Project Structure
 
 ```
 terraform-aws-sonarqube/
 ├── modules/
-│   ├── ec2/                # EC2 instance with Docker setup
+│   ├── ec2/                # EC2 instance with Docker setup and IAM integration
 │   ├── security-group/     # Security group with configurable ports
 │   └── vpc/                # VPC with public/private subnets
-├── main.tf                 # Root module configuration
-├── variable.tf             # Input variables
-├── outputs.tf              # Output values with sensitive handling
+├── main.tf                 # Root module with IAM roles and instance profiles
+├── variable.tf             # Input variables with comprehensive documentation
+├── outputs.tf              # Rich outputs with sensitive handling and debug commands
 ├── locals.tf               # Local values and workspace-based naming
 ├── providers.tf            # HCP Terraform backend configuration
-├── terraform.auto.tfvars   # Auto-loaded default values
+├── terraform.auto.tfvars   # Documentation & fallback default values
 └── README.md              # This file
 ```
 
@@ -113,9 +115,9 @@ The project uses HCP Terraform with the following configuration:
 
 ## ⚙️ Configuration
 
-### Auto-Loaded Variables
+### Documentation & Fallback Variables
 
-The `terraform.auto.tfvars` file provides default values:
+The `terraform.auto.tfvars` file serves as documentation and provides fallback values:
 
 ```hcl
 # Global Configuration
@@ -133,8 +135,17 @@ root_volume_size = 30
 root_volume_type = "gp3"
 
 # Security Configuration
-ssh_port = 69  # Custom SSH port for enhanced security
+ssh_port         = 69  # Custom SSH port for enhanced security
+default_ssh_port = 22
+http_port        = 80
+sonar_port       = 9000
+icmp_port        = -1
 ```
+
+**Note**: HCP Terraform workspace variables take precedence over these values. This file serves as:
+- Configuration reference and documentation
+- Fallback values for any variables not set in HCP workspaces
+- Local development baseline for testing
 
 ### Environment-Specific Overrides
 
@@ -142,6 +153,32 @@ You can override variables per workspace in HCP Terraform:
 - **Dev**: Smaller instance types, relaxed security
 - **Staging**: Production-like setup for testing
 - **Prod**: High-availability, enhanced security
+
+### Available Variables
+
+The project supports comprehensive configuration through variables:
+
+**Global Configuration:**
+- `region` - AWS region for deployment (default: us-east-1)
+- `environment` - Environment name for resource naming (default: dev)
+
+**VPC Configuration:**
+- `vpc_cidr` - CIDR block for VPC (default: 10.0.0.0/16)
+- `public_subnet_cidr` - Public subnet CIDR (default: 10.0.1.0/24)
+- `private_subnet_cidr` - Private subnet CIDR (default: 10.0.2.0/24)
+
+**EC2 Configuration:**
+- `instance_type` - EC2 instance type (default: t3.small)
+- `key_name` - SSH key pair name (default: terraform-test-kp)
+- `root_volume_size` - Root volume size in GB (default: 30)
+- `root_volume_type` - Root volume type (default: gp3)
+
+**Security Configuration:**
+- `ssh_port` - Custom SSH port (default: 69)
+- `default_ssh_port` - Standard SSH port reference (default: 22)
+- `http_port` - HTTP port (default: 80)
+- `sonar_port` - SonarQube web interface port (default: 9000)
+- `icmp_port` - ICMP port for ping (default: -1)
 
 ## 🏷️ Resource Tagging
 
@@ -161,22 +198,64 @@ All resources are automatically tagged with:
 
 ## 📊 Outputs
 
-The deployment provides comprehensive outputs:
+The deployment provides comprehensive outputs organized by category:
 
-- **Instance Details**: IDs, IPs, DNS names
+### Compute Outputs
+- **Instance Details**: IDs, public/private IPs, DNS names
 - **Access Information**: SSH commands, SonarQube URLs
-- **Infrastructure IDs**: VPC, subnets, security groups
-- **Debug Commands**: Troubleshooting and monitoring commands
-- **Security Notes**: Important security considerations
+- **Admin Password**: Command to retrieve SonarQube admin password
+
+### Infrastructure Outputs
+- **Network IDs**: VPC, subnets, security groups
+- **CloudWatch Integration**: Direct links to logs and monitoring
+- **Resource Tags**: Applied tags for cost tracking and management
+
+### Debug & Monitoring
+- **Debug Commands**: Pre-built troubleshooting commands for:
+  - User data logs
+  - Docker container status
+  - SonarQube application logs
+  - System metrics and disk usage
+- **Deployment Metadata**: Timestamps and environment information
+- **Security Notes**: Important security considerations and setup reminders
+
+### Sensitive Output Handling
+- IP addresses and SSH commands are marked as sensitive
+- Debug commands include secure connection strings
+- Admin password retrieval commands are protected
 
 ## 🔐 Security Features
 
 - **Custom SSH Port**: Port 69 instead of default 22
 - **Security Groups**: Least privilege access rules
 - **IAM Roles**: Minimal required permissions for SSM access
+- **Instance Profiles**: EC2 instances with Systems Manager integration
 - **Encrypted Storage**: EBS volumes with encryption
 - **Network Isolation**: Private subnets for sensitive resources
 - **Sensitive Outputs**: Properly marked to prevent exposure
+
+### IAM Infrastructure
+
+The deployment includes comprehensive IAM setup:
+
+```hcl
+# IAM Role for EC2 instances
+aws_iam_role.ec2_role
+├── Assume Role Policy: EC2 service
+├── Attached Policy: AmazonSSMManagedInstanceCore
+└── Instance Profile: For EC2 attachment
+
+# Permissions Granted:
+- Systems Manager Session Manager access
+- CloudWatch agent permissions
+- EC2 instance metadata access
+```
+
+This enables:
+- **Secure Shell Access**: Via AWS Systems Manager Session Manager
+- **No Direct SSH Required**: Alternative secure access method
+- **CloudWatch Integration**: Automated log collection and monitoring
+- **Least Privilege**: Only necessary permissions granted
 
 ## 🌍 Multi-Environment Management
 

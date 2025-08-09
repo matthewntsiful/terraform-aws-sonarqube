@@ -1,6 +1,12 @@
-# Terraform Auto Variables
-# This file is automatically loaded by Terraform and contains default values
-# for the SonarQube deployment
+# Terraform Auto Variables - Documentation & Fallback Values
+# 
+# This file serves as:
+# 1. Documentation of all available variables and their default values
+# 2. Fallback values for any variables not explicitly set in HCP Terraform workspaces
+# 3. Local development baseline for testing and validation
+#
+# Note: HCP Terraform workspace variables take precedence over these values
+# Active configuration is managed in HCP Terraform workspaces (dev/staging/prod)
 
 # Global Configuration
 region = "us-east-1"
