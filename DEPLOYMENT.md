@@ -4,11 +4,11 @@ This project uses **HCP Terraform VCS integration** for automated deployments. A
 
 ## 🌿 Branch → Environment Mapping
 
-| Branch | Environment | HCP Workspace | Auto-Deploy |
-|--------|-------------|---------------|-------------|
-| `dev` | Development | `dev` | ✅ Enabled |
-| `staging` | Staging | `staging` | ✅ Enabled |
-| `main` | Production | `prod` | ✅ Enabled |
+| Branch | Environment | HCP Workspace | Region | Key Pair | Auto-Deploy |
+|--------|-------------|---------------|--------|----------|-------------|
+| `dev` | Development | `dev` | `us-east-1` | `terraform-sonarqube-dev-kp` | ✅ Enabled |
+| `staging` | Staging | `staging` | `us-east-2` | `terraform-sonarqube-staging-kp` | ✅ Enabled |
+| `main` | Production | `prod` | `us-west-2` | `terraform-sonarqube-prod-kp` | ✅ Enabled |
 
 ## 🔄 Deployment Workflow
 
